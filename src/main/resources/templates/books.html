@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Book Manager</title>
+	<style>
+		:root {
+			--bg: #f5f0e6;
+			--card: #fffaf0;
+			--ink: #1f2933;
+			--accent: #2f855a;
+			--accent-soft: #e6fffa;
+			--danger: #c53030;
+			--line: #d9cbb5;
+		}
+
+		* { box-sizing: border-box; }
+
+		body {
+			margin: 0;
+			font-family: "Segoe UI", "Noto Sans KR", sans-serif;
+			background: linear-gradient(160deg, #f5f0e6 0%, #efe3ce 100%);
+			color: var(--ink);
+			min-height: 100vh;
+			padding: 24px;
+		}
+
+		.container {
+			max-width: 980px;
+			margin: 0 auto;
+			background: var(--card);
+			border: 1px solid var(--line);
+			border-radius: 14px;
+			box-shadow: 0 10px 25px rgba(31, 41, 51, 0.08);
+			overflow: hidden;
+		}
+
+		header {
+			padding: 20px 24px;
+			background: var(--accent-soft);
+			border-bottom: 1px solid var(--line);
+		}
+
+		h1 {
+			margin: 0;
+			font-size: 1.6rem;
+		}
+
+		main {
+			display: grid;
+			grid-template-columns: 1fr 1.3fr;
+			gap: 18px;
+			padding: 20px;
+		}
+
+		section {
+			border: 1px solid var(--line);
+			border-radius: 12px;
+			padding: 16px;
+		}
+
+		section h2 {
+			margin-top: 0;
+			font-size: 1.1rem;
+		}
+
+		label {
+			display: block;
+			font-size: 0.92rem;
+			margin-bottom: 8px;
+		}
+
+		input {
+			width: 100%;
+			padding: 10px 12px;
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			margin-top: 4px;
+		}
+
+		.row {
+			display: flex;
+			gap: 8px;
+			margin-top: 12px;
+			flex-wrap: wrap;
+		}
+
+		button {
+			border: none;
+			border-radius: 8px;
+			padding: 10px 14px;
+			font-weight: 600;
+			cursor: pointer;
+			background: var(--accent);
+			color: #fff;
+		}
+
+		button.secondary {
+			background: #4a5568;
+		}
+
+		button.danger {
+			background: var(--danger);
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 0.95rem;
+		}
+
+		th, td {
+			text-align: left;
+			border-bottom: 1px solid var(--line);
+			padding: 10px 8px;
+		}
+
+		#status {
+			margin-top: 10px;
+			font-size: 0.9rem;
+			min-height: 20px;
+		}
+
+		@media (max-width: 900px) {
+			body { padding: 14px; }
+			main { grid-template-columns: 1fr; }
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<header>
+			<h1>Book CRUD (FeignClient 경유)</h1>
+		</header>
+		<main>
+			<section>
+				<h2>도서 생성/수정</h2>
+				<input type="hidden" id="bookId">
+				<label>도서명
+					<input id="name" placeholder="예: Effective Java">
+				</label>
+				<label>저자
+					<input id="author" placeholder="예: Joshua Bloch">
+				</label>
+				<label>가격
+					<input id="price" type="number" min="0" placeholder="예: 38000">
+				</label>
+				<div class="row">
+					<button onclick="createBook()">생성</button>
+					<button class="secondary" onclick="updateBook()">수정</button>
+					<button class="danger" onclick="deleteBook()">삭제</button>
+					<button class="secondary" onclick="resetForm()">초기화</button>
+				</div>
+				<div class="row">
+					<input id="searchId" type="number" min="1" placeholder="조회할 ID 입력">
+					<button class="secondary" onclick="getBookById()">ID 조회</button>
+				</div>
+				<div id="status"></div>
+			</section>
+
+			<section>
+				<h2>도서 목록</h2>
+				<div class="row" style="margin-top:0; margin-bottom:10px;">
+					<button class="secondary" onclick="loadBooks()">목록 새로고침</button>
+				</div>
+				<table>
+					<thead>
+						<tr>
+							<th>ID</th>
+							<th>도서명</th>
+							<th>저자</th>
+							<th>가격</th>
+							<th>동작</th>
+						</tr>
+					</thead>
+					<tbody id="bookTableBody"></tbody>
+				</table>
+			</section>
+		</main>
+	</div>
+
+	<script>
+		const api = "/feign/books";
+
+		function setStatus(message, isError = false) {
+			const status = document.getElementById("status");
+			status.textContent = message;
+			status.style.color = isError ? "#c53030" : "#2f855a";
+		}
+
+		function getPayload() {
+			return {
+				name: document.getElementById("name").value.trim(),
+				author: document.getElementById("author").value.trim(),
+				price: Number(document.getElementById("price").value)
+			};
+		}
+
+		function fillForm(book) {
+			document.getElementById("bookId").value = book.id || "";
+			document.getElementById("name").value = book.name || "";
+			document.getElementById("author").value = book.author || "";
+			document.getElementById("price").value = book.price ?? "";
+		}
+
+		function resetForm() {
+			fillForm({});
+			setStatus("폼을 초기화했습니다.");
+		}
+
+		function validatePayload(payload) {
+			if (!payload.name || !payload.author || Number.isNaN(payload.price)) {
+				setStatus("도서명, 저자, 가격을 정확히 입력해 주세요.", true);
+				return false;
+			}
+			return true;
+		}
+
+		async function loadBooks() {
+			const response = await fetch(api);
+			if (!response.ok) {
+				setStatus("목록 조회 실패", true);
+				return;
+			}
+
+			const books = await response.json();
+			const tbody = document.getElementById("bookTableBody");
+			tbody.innerHTML = "";
+
+			for (const book of books) {
+				const tr = document.createElement("tr");
+				tr.innerHTML = `
+					<td>${book.id}</td>
+					<td>${book.name ?? ""}</td>
+					<td>${book.author ?? ""}</td>
+					<td>${book.price ?? ""}</td>
+					<td><button class="secondary" data-id="${book.id}">선택</button></td>
+				`;
+				tr.querySelector("button").addEventListener("click", () => {
+					fillForm(book);
+					setStatus(`ID ${book.id} 책을 폼에 채웠습니다.`);
+				});
+				tbody.appendChild(tr);
+			}
+
+			setStatus(`총 ${books.length}건 조회 완료`);
+		}
+
+		async function createBook() {
+			const payload = getPayload();
+			if (!validatePayload(payload)) {
+				return;
+			}
+
+			const response = await fetch(api, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload)
+			});
+
+			if (!response.ok) {
+				setStatus("도서 생성 실패", true);
+				return;
+			}
+
+			const created = await response.json();
+			fillForm(created);
+			setStatus(`도서 생성 완료 (ID: ${created.id})`);
+			await loadBooks();
+		}
+
+		async function updateBook() {
+			const id = Number(document.getElementById("bookId").value);
+			if (!id) {
+				setStatus("수정할 ID를 먼저 선택하거나 입력해 주세요.", true);
+				return;
+			}
+
+			const payload = getPayload();
+			if (!validatePayload(payload)) {
+				return;
+			}
+
+			const response = await fetch(`${api}/${id}`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload)
+			});
+
+			if (!response.ok) {
+				setStatus("도서 수정 실패", true);
+				return;
+			}
+
+			const updated = await response.json();
+			fillForm(updated);
+			setStatus(`도서 수정 완료 (ID: ${updated.id})`);
+			await loadBooks();
+		}
+
+		async function deleteBook() {
+			const id = Number(document.getElementById("bookId").value);
+			if (!id) {
+				setStatus("삭제할 ID를 먼저 선택하거나 입력해 주세요.", true);
+				return;
+			}
+
+			const response = await fetch(`${api}/${id}`, {
+				method: "DELETE"
+			});
+
+			if (!response.ok) {
+				setStatus("도서 삭제 실패", true);
+				return;
+			}
+
+			resetForm();
+			setStatus(`도서 삭제 완료 (ID: ${id})`);
+			await loadBooks();
+		}
+
+		async function getBookById() {
+			const id = Number(document.getElementById("searchId").value);
+			if (!id) {
+				setStatus("조회할 ID를 입력해 주세요.", true);
+				return;
+			}
+
+			const response = await fetch(`${api}/${id}`);
+			if (!response.ok) {
+				setStatus("해당 ID의 도서를 찾지 못했습니다.", true);
+				return;
+			}
+
+			const book = await response.json();
+			fillForm(book);
+			setStatus(`ID ${id} 조회 성공`);
+		}
+
+		loadBooks();
+	</script>
+</body>
+</html>
