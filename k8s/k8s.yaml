@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: openfeignclient
-          image: yklee2002/openfeignclient:latest
+          image: uochmod/openfeignclient:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8083
